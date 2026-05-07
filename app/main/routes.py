@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from flask_login import current_user
 
 from app.models import Post
+# from app.models import Post
 
 
 main_bp = Blueprint("main", __name__)
@@ -58,3 +59,6 @@ def session():
 def list_posts():
     posts = Post.query.order_by(Post.created_at.desc()).all()
     return jsonify({"posts": [post_summary(post) for post in posts]})
+
+
+print(list_posts())

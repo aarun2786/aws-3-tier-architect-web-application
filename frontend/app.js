@@ -1,41 +1,56 @@
 const state = {
     user: null,
     posts: [],
-    activePostId: null,
     editingPostId: null,
+    searchQuery: "",
 };
+
+const localPosts = [
+    {
+        id: "you-and-me",
+        title: "You and Me",
+        content: "You bring the ideas, I help shape them into something that works. Step by step, this little blog becomes more useful, more polished, and more yours.",
+        author: {
+            username: "Codex",
+        },
+        comment_count: 0,
+    },
+    {
+        id: "dummy-post",
+        title: "Dummy Post",
+        content: "This is a simple dummy post for testing the blog feed layout, search, and spacing on the home page.",
+        author: {
+            username: "Demo User",
+        },
+        comment_count: 0,
+    },
+];
 
 const elements = {
     authPanel: document.getElementById("auth-panel"),
+    authModal: document.getElementById("auth-modal"),
+    authTitle: document.getElementById("auth-title"),
+    closeAuthModal: document.getElementById("close-auth-modal"),
     composerPanel: document.getElementById("composer-panel"),
     postsList: document.getElementById("posts-list"),
-    postCount: document.getElementById("post-count"),
-    sessionState: document.getElementById("session-state"),
     messageBox: document.getElementById("message-box"),
     loginForm: document.getElementById("login-form"),
     registerForm: document.getElementById("register-form"),
     postForm: document.getElementById("post-form"),
-    commentForm: document.getElementById("comment-form"),
-    detailEmpty: document.getElementById("detail-empty"),
-    detailContent: document.getElementById("detail-content"),
-    detailTitle: document.getElementById("detail-title"),
-    detailAuthor: document.getElementById("detail-author"),
-    detailCreated: document.getElementById("detail-created"),
-    detailBody: document.getElementById("detail-body"),
-    commentsList: document.getElementById("comments-list"),
-    ownerActions: document.getElementById("detail-owner-actions"),
     composerTitle: document.getElementById("composer-title"),
     cancelEdit: document.getElementById("cancel-edit"),
     postSubmit: document.getElementById("post-submit"),
     navNewPost: document.getElementById("nav-new-post"),
     navLogout: document.getElementById("nav-logout"),
-    navHome: document.getElementById("nav-home"),
-    refreshPosts: document.getElementById("refresh-posts"),
-    editPost: document.getElementById("edit-post"),
-    deletePost: document.getElementById("delete-post"),
-    showLogin: document.getElementById("show-login"),
-    showRegister: document.getElementById("show-register"),
+    navUser: document.getElementById("nav-user"),
+    navUserAvatar: document.getElementById("nav-user-avatar"),
+    navUserLabel: document.getElementById("nav-user-label"),
+    navSearch: document.getElementById("nav-search"),
+    switchRegister: document.getElementById("switch-register"),
+    switchLogin: document.getElementById("switch-login"),
 };
+
+let messageHideTimer = null;
 
 async function apiFetch(path, options = {}) {
     const response = await fetch(`/api${path}`, {
@@ -56,11 +71,21 @@ async function apiFetch(path, options = {}) {
 }
 
 function showMessage(message, tone = "info") {
+    if (messageHideTimer) {
+        window.clearTimeout(messageHideTimer);
+    }
+
     elements.messageBox.textContent = message;
     elements.messageBox.className = `message-box ${tone}`;
+    messageHideTimer = window.setTimeout(clearMessage, 5000);
 }
 
 function clearMessage() {
+    if (messageHideTimer) {
+        window.clearTimeout(messageHideTimer);
+        messageHideTimer = null;
+    }
+
     elements.messageBox.textContent = "";
     elements.messageBox.className = "message-box hidden";
 }
@@ -69,16 +94,44 @@ function formatDate(value) {
     return new Date(value).toLocaleString();
 }
 
+function textValue(value) {
+    return value == null ? "" : String(value);
+}
+
 function excerpt(text, size = 180) {
+    text = textValue(text);
     return text.length > size ? `${text.slice(0, size)}...` : text;
+}
+
+function userInitial(user) {
+    const username = textValue(user?.username).trim();
+    return username ? username.charAt(0).toUpperCase() : "";
 }
 
 function setAuthTab(mode) {
     const showLogin = mode === "login";
     elements.loginForm.classList.toggle("hidden", !showLogin);
     elements.registerForm.classList.toggle("hidden", showLogin);
-    elements.showLogin.classList.toggle("active", showLogin);
-    elements.showRegister.classList.toggle("active", !showLogin);
+    elements.authTitle.textContent = showLogin ? "Sign in" : "Create account";
+}
+
+function focusAuthField(mode) {
+    const form = mode === "register" ? elements.registerForm : elements.loginForm;
+    const input = form.querySelector("input");
+    if (input) {
+        input.focus();
+    }
+}
+
+function openAuthModal(mode = "login") {
+    setAuthTab(mode);
+    elements.authPanel.classList.remove("hidden");
+    elements.authModal.classList.remove("hidden");
+    window.setTimeout(() => focusAuthField(mode), 0);
+}
+
+function closeAuthModal() {
+    elements.authModal.classList.add("hidden");
 }
 
 function syncPanels() {
@@ -87,9 +140,12 @@ function syncPanels() {
     elements.composerPanel.classList.toggle("hidden", !authenticated);
     elements.navNewPost.classList.toggle("hidden", !authenticated);
     elements.navLogout.classList.toggle("hidden", !authenticated);
-    elements.commentForm.classList.toggle("hidden", !authenticated || !state.activePostId);
-    elements.ownerActions.classList.toggle("hidden", !authenticated);
-    elements.sessionState.textContent = authenticated ? state.user.username : "Guest";
+    elements.navUser.classList.toggle("authenticated", authenticated);
+    elements.navUserLabel.textContent = authenticated ? state.user.username : "Login";
+    elements.navUserAvatar.textContent = userInitial(state.user);
+    if (authenticated) {
+        closeAuthModal();
+    }
 }
 
 function resetComposer() {
@@ -111,59 +167,47 @@ function loadComposer(post) {
 }
 
 function renderPosts() {
-    elements.postCount.textContent = String(state.posts.length);
     if (!state.posts.length) {
         elements.postsList.innerHTML = `<div class="empty-state">No posts yet. Log in and publish the first one.</div>`;
         return;
     }
 
-    elements.postsList.innerHTML = state.posts
+    const query = state.searchQuery.trim().toLowerCase();
+    const posts = query
+        ? state.posts.filter((post) => {
+            const searchable = [
+                post.title,
+                post.content,
+                post.author?.username,
+            ].map(textValue).join(" ").toLowerCase();
+
+            return searchable.includes(query);
+        })
+        : state.posts;
+
+    if (!posts.length) {
+        elements.postsList.innerHTML = `<div class="empty-state">No posts match "${escapeHtml(state.searchQuery)}".</div>`;
+        return;
+    }
+
+    elements.postsList.innerHTML = posts
         .map(
             (post) => `
                 <article class="post-card">
                     <div class="meta-row">
-                        <span class="meta-text">By ${post.author.username}</span>
-                        <span class="meta-text">${post.comment_count} comments</span>
+                        <span class="meta-text">By ${escapeHtml(post.author?.username || "Unknown")}</span>
+                        <span class="meta-text">${post.comment_count || 0} comments</span>
                     </div>
-                    <h4>${escapeHtml(post.title)}</h4>
+                    <h4>${escapeHtml(post.title || "Untitled post")}</h4>
                     <p>${escapeHtml(excerpt(post.content))}</p>
-                    <button class="ghost-button" type="button" data-post-id="${post.id}">Read post</button>
                 </article>
             `
         )
         .join("");
 }
 
-function renderPostDetail(post) {
-    state.activePostId = post.id;
-    elements.detailEmpty.classList.add("hidden");
-    elements.detailContent.classList.remove("hidden");
-    elements.detailTitle.textContent = post.title;
-    elements.detailAuthor.textContent = `By ${post.author.username}`;
-    elements.detailCreated.textContent = formatDate(post.created_at);
-    elements.detailBody.textContent = post.content;
-    elements.commentForm.classList.toggle("hidden", !state.user);
-
-    const ownsPost = state.user && state.user.id === post.author.id;
-    elements.ownerActions.classList.toggle("hidden", !ownsPost);
-
-    if (!post.comments.length) {
-        elements.commentsList.innerHTML = `<div class="empty-state">No comments yet. Start the conversation.</div>`;
-    } else {
-        elements.commentsList.innerHTML = post.comments
-            .map(
-                (comment) => `
-                    <div class="comment-card">
-                        <p>${escapeHtml(comment.content)}</p>
-                        <span class="meta-text">${comment.author.username} on ${formatDate(comment.created_at)}</span>
-                    </div>
-                `
-            )
-            .join("");
-    }
-}
-
 function escapeHtml(value) {
+    value = textValue(value);
     return value
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -180,23 +224,12 @@ async function loadSession() {
 
 async function loadPosts() {
     const payload = await apiFetch("/posts");
-    state.posts = payload.posts;
-    renderPosts();
-
-    if (state.activePostId) {
-        const exists = state.posts.some((post) => post.id === state.activePostId);
-        if (!exists) {
-            state.activePostId = null;
-            elements.detailContent.classList.add("hidden");
-            elements.detailEmpty.classList.remove("hidden");
-            elements.detailTitle.textContent = "Select a post";
-        }
+    if (!Array.isArray(payload.posts)) {
+        throw new Error("Invalid API response from /api/posts. Check NGINX /api proxy configuration.");
     }
-}
 
-async function loadPost(postId) {
-    const payload = await apiFetch(`/posts/${postId}`);
-    renderPostDetail(payload.post);
+    state.posts = [...localPosts, ...payload.posts];
+    renderPosts();
 }
 
 async function handleLogin(event) {
@@ -213,6 +246,7 @@ async function handleLogin(event) {
         elements.loginForm.reset();
         await loadSession();
         await loadPosts();
+        closeAuthModal();
         showMessage("Login successful.", "success");
     } catch (error) {
         showMessage(error.message, "error");
@@ -235,6 +269,7 @@ async function handleRegister(event) {
         elements.registerForm.reset();
         await loadSession();
         await loadPosts();
+        closeAuthModal();
         showMessage("Account created and logged in.", "success");
     } catch (error) {
         showMessage(error.message, "error");
@@ -248,9 +283,6 @@ async function handleLogout() {
         state.user = null;
         syncPanels();
         resetComposer();
-        if (state.activePostId) {
-            await loadPost(state.activePostId);
-        }
         showMessage("Logged out.", "info");
     } catch (error) {
         showMessage(error.message, "error");
@@ -271,107 +303,67 @@ async function handlePostSubmit(event) {
     const method = isEditing ? "PUT" : "POST";
 
     try {
-        const payload = await apiFetch(path, { method, body });
+        await apiFetch(path, { method, body });
         resetComposer();
         await loadPosts();
-        await loadPost(payload.post.id);
-        showMessage(payload.message, "success");
-    } catch (error) {
-        showMessage(error.message, "error");
-    }
-}
-
-async function handleCommentSubmit(event) {
-    event.preventDefault();
-    clearMessage();
-    if (!state.activePostId) {
-        return;
-    }
-
-    const formData = new FormData(elements.commentForm);
-    const body = JSON.stringify({ content: formData.get("content") });
-
-    try {
-        const payload = await apiFetch(`/posts/${state.activePostId}/comments`, { method: "POST", body });
-        elements.commentForm.reset();
-        renderPostDetail(payload.post);
-        await loadPosts();
-        showMessage(payload.message, "success");
-    } catch (error) {
-        showMessage(error.message, "error");
-    }
-}
-
-async function handleDeletePost() {
-    clearMessage();
-    if (!state.activePostId) {
-        return;
-    }
-
-    try {
-        await apiFetch(`/posts/${state.activePostId}`, { method: "DELETE" });
-        state.activePostId = null;
-        elements.detailContent.classList.add("hidden");
-        elements.detailEmpty.classList.remove("hidden");
-        elements.detailTitle.textContent = "Select a post";
-        await loadPosts();
-        showMessage("Post deleted.", "info");
+        showMessage(isEditing ? "Post updated." : "Post published.", "success");
     } catch (error) {
         showMessage(error.message, "error");
     }
 }
 
 function attachEvents() {
-    elements.showLogin.addEventListener("click", () => setAuthTab("login"));
-    elements.showRegister.addEventListener("click", () => setAuthTab("register"));
+    elements.switchRegister.addEventListener("click", () => {
+        setAuthTab("register");
+        focusAuthField("register");
+    });
+    elements.switchLogin.addEventListener("click", () => {
+        setAuthTab("login");
+        focusAuthField("login");
+    });
     elements.loginForm.addEventListener("submit", handleLogin);
     elements.registerForm.addEventListener("submit", handleRegister);
     elements.postForm.addEventListener("submit", handlePostSubmit);
-    elements.commentForm.addEventListener("submit", handleCommentSubmit);
     elements.navLogout.addEventListener("click", handleLogout);
     elements.navNewPost.addEventListener("click", () => {
         resetComposer();
         elements.composerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    elements.navHome.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
-    elements.refreshPosts.addEventListener("click", async () => {
-        clearMessage();
-        await loadPosts();
-        showMessage("Posts refreshed.", "info");
+    elements.navUser.addEventListener("click", () => {
+        if (state.user) {
+            elements.composerPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+        }
+
+        openAuthModal("login");
+    });
+    elements.closeAuthModal.addEventListener("click", closeAuthModal);
+    elements.authModal.addEventListener("click", (event) => {
+        if (event.target.hasAttribute("data-close-auth")) {
+            closeAuthModal();
+        }
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !elements.authModal.classList.contains("hidden")) {
+            closeAuthModal();
+        }
+    });
+    elements.navSearch.addEventListener("input", (event) => {
+        state.searchQuery = event.target.value;
+        renderPosts();
+    });
+    elements.navSearch.closest("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        elements.postsList.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     elements.cancelEdit.addEventListener("click", resetComposer);
-    elements.editPost.addEventListener("click", async () => {
-        if (!state.activePostId) {
-            return;
-        }
-
-        try {
-            const payload = await apiFetch(`/posts/${state.activePostId}`);
-            loadComposer(payload.post);
-        } catch (error) {
-            showMessage(error.message, "error");
-        }
-    });
-    elements.deletePost.addEventListener("click", handleDeletePost);
-
-    elements.postsList.addEventListener("click", async (event) => {
-        const button = event.target.closest("[data-post-id]");
-        if (!button) {
-            return;
-        }
-
-        clearMessage();
-        try {
-            await loadPost(button.dataset.postId);
-        } catch (error) {
-            showMessage(error.message, "error");
-        }
-    });
 }
 
 async function bootstrap() {
     attachEvents();
     setAuthTab("login");
+    state.posts = [...localPosts];
+    renderPosts();
 
     try {
         await loadSession();

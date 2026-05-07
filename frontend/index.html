@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Three-Tier Blog Frontend</title>
+    <title>Three-Tier Blog Console</title>
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -11,92 +11,86 @@
         <header class="site-header">
             <div class="container nav">
                 <div class="brand-lockup">
-                    <span class="brand-kicker">NGINX Static Frontend</span>
-                    <h1 class="brand">Three-Tier Blog Control Room</h1>
+                    <span class="brand-kicker">Three-tier web app</span>
+                    <h1 class="brand">Blog Console</h1>
                 </div>
+                <form class="top-search" role="search">
+                    <label class="sr-only" for="nav-search">Search posts</label>
+                    <span class="search-icon" aria-hidden="true"></span>
+                    <input id="nav-search" type="search" placeholder="Search posts">
+                </form>
                 <div class="nav-actions">
-                    <button id="nav-home" class="chip-button" type="button">Home</button>
-                    <button id="nav-new-post" class="chip-button hidden" type="button">New Post</button>
+                    <button id="nav-new-post" class="chip-button hidden" type="button">New post</button>
+                    <button id="nav-user" class="user-button" type="button">
+                        <span id="nav-user-avatar" class="user-avatar" aria-hidden="true"></span>
+                        <span id="nav-user-label" class="user-label">Login</span>
+                    </button>
                     <button id="nav-logout" class="chip-button hidden" type="button">Logout</button>
                 </div>
             </div>
         </header>
 
-        <main class="container main-layout">
-            <section class="hero-panel">
-                <div>
-                    <span class="hero-kicker">Separated frontend + backend</span>
-                    <h2>Static UI on NGINX, Flask API behind `/api`.</h2>
-                    <p class="hero-copy">
-                        This frontend is plain HTML, CSS, and JavaScript. NGINX can serve it directly,
-                        while Flask stays focused on authentication, posts, comments, and database work.
-                    </p>
-                </div>
-                <div class="hero-stats">
-                    <div class="stat-card">
-                        <span id="post-count" class="stat-value">0</span>
-                        <span class="stat-label">Posts loaded</span>
+        <section id="auth-modal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <div class="auth-backdrop" data-close-auth></div>
+            <section id="auth-panel" class="panel auth-dialog">
+                <div class="panel-header">
+                    <div>
+                        <span class="section-kicker">Identity</span>
+                        <h3 id="auth-title">Sign in</h3>
                     </div>
-                    <div class="stat-card">
-                        <span id="session-state" class="stat-value">Guest</span>
-                        <span class="stat-label">Session state</span>
-                    </div>
+                    <button id="close-auth-modal" class="icon-button close-button" type="button" aria-label="Close login popup"></button>
                 </div>
-            </section>
 
+                <form id="login-form" class="form-stack">
+                    <label>
+                        <span>Email</span>
+                        <input type="email" name="email" placeholder="you@example.com" required>
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input type="password" name="password" placeholder="Minimum 6 characters" required>
+                    </label>
+                    <button class="primary-button" type="submit">Login</button>
+                    <p class="auth-switch">
+                        Don't have an account?
+                        <button id="switch-register" class="text-button" type="button">Sign up here</button>
+                    </p>
+                </form>
+
+                <form id="register-form" class="form-stack hidden">
+                    <label>
+                        <span>Username</span>
+                        <input type="text" name="username" placeholder="Your public name" required>
+                    </label>
+                    <label>
+                        <span>Email</span>
+                        <input type="email" name="email" placeholder="you@example.com" required>
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input type="password" name="password" placeholder="Minimum 6 characters" required>
+                    </label>
+                    <label>
+                        <span>Confirm password</span>
+                        <input type="password" name="confirm_password" placeholder="Repeat your password" required>
+                    </label>
+                    <button class="primary-button" type="submit">Create account</button>
+                    <p class="auth-switch">
+                        Already have an account?
+                        <button id="switch-login" class="text-button" type="button">Login here</button>
+                    </p>
+                </form>
+            </section>
+        </section>
+
+        <main class="container main-layout">
             <section id="message-box" class="message-box hidden" aria-live="polite"></section>
 
             <section class="panel-grid">
-                <section id="auth-panel" class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <span class="section-kicker">Account Access</span>
-                            <h3>Join or sign in</h3>
-                        </div>
-                    </div>
-
-                    <div class="tabs">
-                        <button id="show-login" class="tab-button active" type="button">Login</button>
-                        <button id="show-register" class="tab-button" type="button">Register</button>
-                    </div>
-
-                    <form id="login-form" class="form-stack">
-                        <label>
-                            <span>Email</span>
-                            <input type="email" name="email" placeholder="you@example.com" required>
-                        </label>
-                        <label>
-                            <span>Password</span>
-                            <input type="password" name="password" placeholder="Minimum 6 characters" required>
-                        </label>
-                        <button class="primary-button" type="submit">Login</button>
-                    </form>
-
-                    <form id="register-form" class="form-stack hidden">
-                        <label>
-                            <span>Username</span>
-                            <input type="text" name="username" placeholder="Your public name" required>
-                        </label>
-                        <label>
-                            <span>Email</span>
-                            <input type="email" name="email" placeholder="you@example.com" required>
-                        </label>
-                        <label>
-                            <span>Password</span>
-                            <input type="password" name="password" placeholder="Minimum 6 characters" required>
-                        </label>
-                        <label>
-                            <span>Confirm password</span>
-                            <input type="password" name="confirm_password" placeholder="Repeat your password" required>
-                        </label>
-                        <button class="primary-button" type="submit">Create account</button>
-                    </form>
-                </section>
-
                 <section id="composer-panel" class="panel hidden">
                     <div class="panel-header">
                         <div>
-                            <span class="section-kicker">Post Editor</span>
+                            <span class="section-kicker">Editor</span>
                             <h3 id="composer-title">Create a new post</h3>
                         </div>
                         <button id="cancel-edit" class="ghost-button hidden" type="button">Cancel edit</button>
@@ -120,57 +114,13 @@
                 <section class="panel">
                     <div class="panel-header">
                         <div>
-                            <span class="section-kicker">Feed</span>
-                            <h3>Latest posts</h3>
+                            <span class="section-kicker">Posts</span>
+                            <h3>Feed</h3>
                         </div>
-                        <button id="refresh-posts" class="ghost-button" type="button">Refresh</button>
                     </div>
                     <div id="posts-list" class="post-list"></div>
                 </section>
 
-                <section class="panel detail-panel">
-                    <div class="panel-header">
-                        <div>
-                            <span class="section-kicker">Post Detail</span>
-                            <h3 id="detail-title">Select a post</h3>
-                        </div>
-                    </div>
-
-                    <div id="detail-empty" class="empty-state">
-                        Pick a post from the feed to view its content and comments.
-                    </div>
-
-                    <article id="detail-content" class="detail-content hidden">
-                        <div class="meta-row">
-                            <span id="detail-author" class="meta-text"></span>
-                            <span id="detail-created" class="meta-text"></span>
-                        </div>
-                        <p id="detail-body" class="detail-body"></p>
-
-                        <div id="detail-owner-actions" class="action-row hidden">
-                            <button id="edit-post" class="ghost-button" type="button">Edit</button>
-                            <button id="delete-post" class="danger-button" type="button">Delete</button>
-                        </div>
-
-                        <div class="comments-block">
-                            <div class="panel-header compact">
-                                <div>
-                                    <span class="section-kicker">Discussion</span>
-                                    <h4>Comments</h4>
-                                </div>
-                            </div>
-                            <div id="comments-list" class="comment-list"></div>
-                        </div>
-
-                        <form id="comment-form" class="form-stack hidden">
-                            <label>
-                                <span>Add comment</span>
-                                <textarea name="content" rows="4" placeholder="Join the conversation" required></textarea>
-                            </label>
-                            <button class="primary-button" type="submit">Post comment</button>
-                        </form>
-                    </article>
-                </section>
             </section>
         </main>
     </div>
